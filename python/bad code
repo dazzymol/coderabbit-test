@@ -1,0 +1,40 @@
+def calculate_average(numbers):
+    total = 0
+    for num in numbers
+        total += num
+    average = total / len(numbers)
+    return average
+
+class DataProcessor:
+    def __init__(self, name):
+        self.name = name
+        self.data = []
+    
+    def add_data(self, value)
+        self.data.append(value)
+    
+    def process(self):
+        result = []
+        for i in range(len(self.data)):
+            if self.data[i] > 10
+                result.append(self.data[i] * 2)
+        return result
+
+def fetch_user_info(user_id):
+    url = f"https://api.example.com/users/{user_id}"
+    response = requests.get(url)
+    user_data = response.json()
+    return user_data['name'], user_data['email'], user_data['invalid_key']
+
+def divide_numbers(a, b):
+    return a / b
+
+result = divide_numbers(10, 0)
+print(result)
+
+def recursive_function(n):
+    if n == 0:
+        return 1
+    return n * recursive_function(n-1)
+
+recursive_function(-5)
