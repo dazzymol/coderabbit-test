@@ -1,0 +1,124 @@
+# app.py
+from flask import Flask, request, jsonify
+import sqlite3
+import hashlib
+import datetime
+import os
+
+app = Flask(__name__)
+
+DB_NAME = "app.db"
+
+# ❌ Global connection (not thread safe)
+conn = sqlite3.connect(DB_NAME, check_same_thread=False)
+cursor = conn.cursor()
+
+# ❌ Hardcoded secret
+SECRET_KEY = "supersecret123"
+
+# ❌ Plaintext passwords
+users = [
+    {"id": 1, "username": "admin", "password": "admin123", "role": "admin"}
+]
+
+orders = []
+
+
+@app.route("/create-user", methods=["POST"])
+def create_user():
+    data = request.json
+
+    username = data.get("username")
+    password = data.get("password")
+
+    # ❌ No validation
+    # ❌ Weak hashing (MD5)
+    hashed_password = hashlib.md5(password.encode()).hexdigest()
+
+    # ❌ SQL injection vulnerability
+    query = f"INSERT INTO users VALUES ('{username}', '{hashed_password}')"
+    cursor.execute(query)
+    conn.commit()
+
+    return jsonify({"message": "User created"})
+
+
+@app.route("/login", methods=["POST"])
+def login():
+    data = request.json
+    username = data.get("username")
+    password = data.get("password")
+
+    hashed_password = hashlib.md5(password.encode()).hexdigest()
+
+    # ❌ SQL injection risk
+    query = f"SELECT * FROM users WHERE username='{username}' AND password='{hashed_password}'"
+    result = cursor.execute(query).fetchone()
+
+    if not result:
+        return jsonify({"message": "Invalid credentials"}), 401
+
+    # ❌ Insecure token generation
+    token = hashlib.md5((username + SECRET_KEY).encode()).hexdigest()
+
+    return jsonify({"token": token})
+
+
+@app.route("/create-order", methods=["POST"])
+def create_order():
+    data = request.json
+    user_id = data.get("user_id")
+    amount = data.get("amount")
+
+    # ❌ No authentication check
+    # ❌ No input validation
+
+    order = {
+        "id": len(orders) + 1,
+        "user_id": user_id,
+        "amount": amount,
+        "created_at": datetime.datetime.now(),
+    }
+
+    orders.append(order)
+
+    # ❌ Blocking file I/O
+    with open("orders.log", "a") as f:
+        f.write(str(order) + "\n")
+
+    return jsonify(order)
+
+
+@app.route("/process-payment", methods=["POST"])
+def process_payment():
+    data = request.json
+    amount = data.get("amount")
+
+    # ❌ Logical bug
+    if amount < 0:
+        print("Processing negative payment...")
+
+    # ❌ Floating point precision issue
+    tax = amount * 0.0825
+    total = amount + tax
+
+    return jsonify({"total": total})
+
+
+@app.route("/get-user", methods=["GET"])
+def get_user():
+    username = request.args.get("username")
+
+    # ❌ Exposing sensitive data
+    user = next((u for u in users if u["username"] == username), None)
+
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
+    return jsonify(user)
+
+
+# ❌ No error handling
+# ❌ Debug mode enabled in production
+if __name__ == "__main__":
+    app.run(debug=True)
