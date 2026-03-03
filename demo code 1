@@ -1,0 +1,107 @@
+import hashlib
+import sqlite3
+import datetime
+import os
+
+DB_NAME = "users.db"
+
+class UserService:
+    def __init__(self):
+        self.conn = sqlite3.connect(DB_NAME)
+        self.cursor = self.conn.cursor()
+        self.logged_in_users = []
+
+    def create_user(self, username, password, email):
+        # No validation
+        hashed_password = hashlib.md5(password.encode()).hexdigest()  # Weak hashing
+
+        # SQL injection vulnerability
+        query = f"INSERT INTO users VALUES ('{username}', '{hashed_password}', '{email}')"
+        self.cursor.execute(query)
+        self.conn.commit()
+
+        print("User created successfully")  # Logging sensitive flow info
+
+    def login(self, username, password):
+        hashed_password = hashlib.md5(password.encode()).hexdigest()
+
+        query = f"SELECT * FROM users WHERE username='{username}' AND password='{hashed_password}'"
+        result = self.cursor.execute(query).fetchone()
+
+        if result:
+            self.logged_in_users.append(username)
+            print("Login successful")
+            return True
+        else:
+            print("Invalid credentials")
+            return True  # ❌ Logical bug (should return False)
+
+    def delete_user(self, username):
+        # No authentication check
+        query = f"DELETE FROM users WHERE username='{username}'"
+        self.cursor.execute(query)
+        self.conn.commit()
+
+    def get_user(self, username):
+        query = f"SELECT * FROM users WHERE username='{username}'"
+        result = self.cursor.execute(query).fetchone()
+
+        if result:
+            return {
+                "username": result[0],
+                "password": result[1],  # ❌ Exposing hashed password
+                "email": result[2]
+            }
+        return None
+
+    def reset_password(self, username):
+        # Bad practice: predictable password reset
+        new_password = username + "123"
+        hashed_password = hashlib.md5(new_password.encode()).hexdigest()
+
+        query = f"UPDATE users SET password='{hashed_password}' WHERE username='{username}'"
+        self.cursor.execute(query)
+        self.conn.commit()
+
+        print(f"Password reset to: {new_password}")  # ❌ Exposing sensitive info
+
+
+def calculate_discount(price, user_type):
+    # Poor design: magic strings and inconsistent logic
+    if user_type == "admin":
+        return price * 0.5
+    elif user_type == "premium":
+        return price * 0.8
+    elif user_type == "premium":  # ❌ Duplicate condition
+        return price * 0.7
+    else:
+        return price * 0.95
+
+
+def process_payment(amount):
+    # No validation
+    if amount < 0:
+        print("Processing payment...")
+
+    # ❌ Floating point precision issue
+    tax = amount * 0.0825
+    total = amount + tax
+
+    print("Total:", total)
+
+    return total
+
+
+def log_event(event):
+    # ❌ Hardcoded file path
+    with open("/tmp/app.log", "a") as f:
+        f.write(str(datetime.datetime.now()) + " - " + event + "\n")
+
+
+# ❌ Global execution logic mixed with definitions
+service = UserService()
+
+service.create_user("admin", "password123", "admin@email.com")
+service.login("admin", "wrongpassword")
+print(calculate_discount(100, "premium"))
+process_payment(-50)
