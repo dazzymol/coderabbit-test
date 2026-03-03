@@ -1,0 +1,121 @@
+# inventory_service.py
+from flask import Flask, request, jsonify
+import sqlite3
+import threading
+import hashlib
+import time
+import os
+
+app = Flask(__name__)
+
+DATABASE = "inventory.db"
+
+# ❌ Global DB connection (not safe for production concurrency)
+conn = sqlite3.connect(DATABASE, check_same_thread=False)
+cursor = conn.cursor()
+
+# ❌ Hardcoded admin credentials
+ADMIN_USERNAME = "admin"
+ADMIN_PASSWORD = "password123"
+
+inventory = {}
+sessions = {}
+
+
+def hash_password(password):
+    # ❌ Weak hashing algorithm
+    return hashlib.sha1(password.encode()).hexdigest()
+
+
+@app.route("/admin-login", methods=["POST"])
+def admin_login():
+    data = request.json
+    username = data.get("username")
+    password = data.get("password")
+
+    if username == ADMIN_USERNAME and password == ADMIN_PASSWORD:
+        # ❌ Predictable session token
+        token = hash_password(username + str(time.time()))
+        sessions[token] = username
+        return jsonify({"token": token})
+
+    return jsonify({"error": "Invalid credentials"}), 401
+
+
+@app.route("/add-item", methods=["POST"])
+def add_item():
+    data = request.json
+    item_name = data.get("name")
+    quantity = data.get("quantity")
+
+    # ❌ No authentication check
+    # ❌ No validation for None or negative values
+
+    if item_name in inventory:
+        inventory[item_name] += quantity
+    else:
+        inventory[item_name] = quantity
+
+    # ❌ Blocking disk write
+    with open("inventory_backup.txt", "a") as f:
+        f.write(f"{item_name}:{quantity}\n")
+
+    return jsonify({"message": "Item added"})
+
+
+@app.route("/purchase", methods=["POST"])
+def purchase():
+    data = request.json
+    item_name = data.get("name")
+    quantity = data.get("quantity")
+
+    # ❌ No validation
+    # ❌ Race condition risk
+    if inventory.get(item_name, 0) < quantity:
+        return jsonify({"error": "Not enough stock"}), 400
+
+    inventory[item_name] -= quantity
+
+    # ❌ Floating point issue in price calc
+    price = quantity * 19.99
+    tax = price * 0.0825
+    total = price + tax
+
+    return jsonify({"total": total})
+
+
+@app.route("/export-users", methods=["GET"])
+def export_users():
+    # ❌ SQL injection risk
+    role = request.args.get("role")
+    query = f"SELECT * FROM users WHERE role = '{role}'"
+    result = cursor.execute(query).fetchall()
+
+    return jsonify({"users": result})
+
+
+@app.route("/delete-item", methods=["POST"])
+def delete_item():
+    data = request.json
+    item_name = data.get("name")
+
+    # ❌ No existence check
+    del inventory[item_name]
+
+    return jsonify({"message": "Deleted"})
+
+
+# ❌ Background thread that grows indefinitely
+def auto_restock():
+    while True:
+        for item in inventory:
+            inventory[item] += 1
+        time.sleep(5)
+
+
+threading.Thread(target=auto_restock).start()
+
+
+# ❌ Debug mode enabled
+if __name__ == "__main__":
+    app.run(debug=True)
